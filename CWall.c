@@ -8,19 +8,8 @@ static struct nf_hook_ops input_filter;		// NF_INET_PRE_ROUTING - for incoming p
 static struct nf_hook_ops output_filter;	// NF_INET_POST_ROUTING - for outgoing packets
 
 
-// Function that will perform filtering on incoming packets
-unsigned int input_hookfn(
-		unsigned int hooknum,
-		struct sk_buff *skb,
-		const struct net_device *in, 
-		const struct net_device *out,         
-		int (*okfn)(struct sk_buff *)
-		){
-	return NF_DROP;	// Drop all packets (for now)
-}
-
-// Function that will perform filtering on outgoing packets
-unsigned int output_hookfn(
+// Function that will perform filtering on incoming and outgoing packets
+unsigned int hookfn(
 		unsigned int hooknum,
 		struct sk_buff *skb,
 		const struct net_device *in, 
@@ -34,13 +23,13 @@ unsigned int output_hookfn(
 int init_module(){
 	
 	// Initialize Pre-Routing Filter
-	input_filter.hook	= (nf_hookfn *)&input_hookfn;	// Hook Function
+	input_filter.hook	= (nf_hookfn *)&hookfn;		// Hook Function
 	input_filter.pf		= PF_INET;			// Protocol Family
 	input_filter.hooknum	= NF_INET_PRE_ROUTING;		// Hook to be used
 	input_filter.priority	= NF_IP_PRI_FIRST;		// Priority of our hook (makes multiple hooks possible)
 
 	// Initialize Post-Routing Filter
-	output_filter.hook	= (nf_hookfn *)&output_hookfn;	// Hook Function
+	output_filter.hook	= (nf_hookfn *)&hookfn;		// Hook Function
 	output_filter.pf	= PF_INET;			// Protocol Family
 	output_filter.hooknum	= NF_INET_POST_ROUTING;		// Hook to be used
 	output_filter.priority	= NF_IP_PRI_FIRST;		// Priority of our hook (makes multiple hooks possible)
