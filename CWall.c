@@ -67,7 +67,7 @@ int checkRule(struct rule *curr_rule, struct sk_buff *skb){
 	// Get the protocol header and check the port numbers
 	if ( ip_header->protocol == 6 ){	// TCP
 		tcp_header = tcp_hdr(skb);
-		//printk("Header - Src Port = %i, Dest Src = %i ; Rule - Src Port = %i, Dest Src = %i ", ntohs(tcp_header->source), ntohs(tcp_header->dest), curr_rule->src_port, curr_rule->dest_port);
+		//printk("Header - Src Port = %i, Dest Port = %i ; Rule - Src Port = %i, Dest Port = %i ", ntohs(tcp_header->source), ntohs(tcp_header->dest), curr_rule->src_port, curr_rule->dest_port);
 	
 		// Match Source Port
 		if ( curr_rule->src_port == -1 || curr_rule->src_port == ntohs(tcp_header->source) ){
@@ -132,21 +132,27 @@ long int convertIP(unsigned char ip[]){
 	return result;
 }
 
-// Load the rules as a linked list
+// Load the rules as an array
 void loadRules(void){
-	// For now load rules manually
+	// Add your rules here
 
 	unsigned char ip[4];
 
-	/*
-	// Rule to block HTTP traffic
+	// Rules to block HTTPS traffic
 	numRules++;
 	rules[numRules - 1].src_ip = -1;
 	rules[numRules - 1].dest_ip = -1;	
-	rules[numRules - 1].src_port = 80;
+	rules[numRules - 1].src_port = 443;	// Port 443 - SSL
 	rules[numRules - 1].dest_port = -1;	
-	rules[numRules - 1].protocol = 6;
-	*/
+	rules[numRules - 1].protocol = -1;
+	
+	numRules++;
+	rules[numRules - 1].src_ip = -1;
+	rules[numRules - 1].dest_ip = -1;	
+	rules[numRules - 1].src_port = -1;
+	rules[numRules - 1].dest_port = 443;	// Port 443 - SSL
+	rules[numRules - 1].protocol = -1;
+	
 	/*
 	// Rule to block all traffic to my IP
 	numRules++;
@@ -166,7 +172,7 @@ void loadRules(void){
 	rules[numRules - 1].dest_port = -1;	
 	rules[numRules - 1].protocol = 1;
 	*/
-
+	/*
 	// Rule to block all UDP traffic
 	numRules++;
 	rules[numRules - 1].src_ip = -1;
@@ -174,7 +180,7 @@ void loadRules(void){
 	rules[numRules - 1].src_port = -1;
 	rules[numRules - 1].dest_port = -1;	
 	rules[numRules - 1].protocol = 17;
-
+	*/
 }
 
 
@@ -184,7 +190,7 @@ int init_module(){
 	loadRules();
 	
 	// Initialize Pre-Routing Filter
-	printk("Starting CWall");
+	printk("\nStarting CWall");
 	input_filter.hook	= (nf_hookfn *)&hookfn;		// Hook Function
 	input_filter.pf		= PF_INET;			// Protocol Family
 	input_filter.hooknum	= NF_INET_PRE_ROUTING;		// Hook to be used
