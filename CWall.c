@@ -9,10 +9,10 @@
 
 // Struct for holding each rule
 struct rule{
-	unsigned long int src_ip;
-	unsigned long int dest_ip;
-	unsigned short int src_port;
-	unsigned short int dest_port;
+	long int src_ip;
+	long int dest_ip;
+	int src_port;
+	int dest_port;
 	char protocol;
 };
 
@@ -22,35 +22,40 @@ static struct nf_hook_ops output_filter;	// NF_INET_POST_ROUTING - for outgoing 
 
 // Array of rules
 static struct rule rules[100];
-static int numRules = 1;
+static int numRules = 0;
 
 // Match the packet against the rule
 int checkRule(struct rule *curr_rule, struct sk_buff *skb){
+
+	// The Network Layer Header
+	struct iphdr *ip_header;
+
+	// The Transport Layer Header
+	struct udphdr *udp_header;
+	struct tcphdr *tcp_header;
 
 	if ( !skb ) {
 		return NF_ACCEPT;
 	}
 
-	// The IP Header
-	struct iphdr *ip_header;
+	
 	ip_header = (struct iphdr *)skb_network_header(skb);
 
 	if ( !ip_header ) {
 		return NF_ACCEPT;
 	}
 
-	struct udphdr *udp_header;
-	struct tcphdr *tcp_header;
-
 	// The rule matches the packet if and only if all non negative fields match
 	
+	//printk("Header - Source IP = %ld, Dest IP = %ld ; Rule - Source IP = %ld, Dest IP = %ld ", (long int)ntohl(ip_header->saddr), (long int)ntohl(ip_header->daddr), curr_rule->src_ip, curr_rule->dest_ip);
+
 	// Match Source IP
-	if ( curr_rule->src_ip != -1 && curr_rule->src_ip != (unsigned long int)ip_header->saddr ){
+	if ( curr_rule->src_ip != -1 && curr_rule->src_ip != (long int)ntohl(ip_header->saddr) ){
 		return 0;
 	}
 
 	// Match Destination IP
-	if ( curr_rule->dest_ip != -1 && curr_rule->dest_ip != (unsigned long int)ip_header->daddr ){
+	if ( curr_rule->dest_ip != -1 && curr_rule->dest_ip != (long int)ntohl(ip_header->daddr) ){
 		return 0;
 	}
 
@@ -62,35 +67,42 @@ int checkRule(struct rule *curr_rule, struct sk_buff *skb){
 	// Get the protocol header and check the port numbers
 	if ( ip_header->protocol == 6 ){	// TCP
 		tcp_header = tcp_hdr(skb);
-		
+		//printk("Header - Src Port = %i, Dest Src = %i ; Rule - Src Port = %i, Dest Src = %i ", ntohs(tcp_header->source), ntohs(tcp_header->dest), curr_rule->src_port, curr_rule->dest_port);
+	
 		// Match Source Port
-		if ( curr_rule->src_port != -1 && curr_rule->src_port != (unsigned short int)tcp_header->source ){
-			return 0;
+		if ( curr_rule->src_port == -1 || curr_rule->src_port == ntohs(tcp_header->source) ){
+			// Match Destination Port
+			if ( curr_rule->dest_port == -1 || curr_rule->dest_port == ntohs(tcp_header->dest) ){
+				//printk("Rule Matches!!");
+				return 1;
+			}
 		}
 
-		// Match Destination Port
-		if ( curr_rule->dest_port != -1 && curr_rule->dest_port != (unsigned short int)tcp_header->dest ){
-			return 0;
-		}
+		return 0;
 
 	}
 	else if ( ip_header->protocol == 17 ){	// UDP
 		udp_header = udp_hdr(skb);
-		
+	
 		// Match Source Port
-		if ( curr_rule->src_port != -1 && curr_rule->src_port != (unsigned short int)udp_header->source ){
-			return 0;
-		}
+		if ( curr_rule->src_port == -1 || curr_rule->src_port == ntohs((unsigned short int)udp_header->source) ){
+			// Match Destination Port
+			if ( curr_rule->dest_port == -1 || curr_rule->dest_port == ntohs((unsigned short int)udp_header->dest) ){
+				return 1;
+			}
+		}	
 
-		// Match Destination Port
-		if ( curr_rule->dest_port != -1 && curr_rule->dest_port != (unsigned short int)udp_header->dest ){
-			return 0;
+		return 0;
+
+	}
+	else if ( ip_header->protocol == 1 ){	// ICMP
+	
+		if ( curr_rule->src_port == -1 && curr_rule->dest_port == -1 ){
+			return 1;
 		}
 
 	}
-
-	return 1;
-
+	return 0;
 }
 
 // Function that will perform filtering on incoming and outgoing packets
@@ -114,15 +126,55 @@ unsigned int hookfn(
 	return NF_ACCEPT;
 }
 
+long int convertIP(unsigned char ip[]){
+	long int result = (long int)ip[0]*256*256*256 + (long int)ip[1]*256*256 + (long int)ip[2]*256 + (long int)ip[3];
+	printk("IP %d.%d.%d.%d = %ld", ip[0], ip[1], ip[2], ip[3], result);
+	return result;
+}
+
 // Load the rules as a linked list
 void loadRules(void){
 	// For now load rules manually
+
+	unsigned char ip[4];
+
+	/*
 	// Rule to block HTTP traffic
-	rules[0].src_ip = -1;
-	rules[0].dest_ip = -1;	
-	rules[0].src_port = -1;
-	rules[0].dest_port = -1;	
-	rules[0].protocol = 1;
+	numRules++;
+	rules[numRules - 1].src_ip = -1;
+	rules[numRules - 1].dest_ip = -1;	
+	rules[numRules - 1].src_port = 80;
+	rules[numRules - 1].dest_port = -1;	
+	rules[numRules - 1].protocol = 6;
+	*/
+	/*
+	// Rule to block all traffic to my IP
+	numRules++;
+	ip[0]=192;ip[1]=168;ip[2]=77;ip[3]=131;
+	rules[numRules - 1].src_ip = convertIP(ip);
+	rules[numRules - 1].dest_ip = -1;	
+	rules[numRules - 1].src_port = -1;
+	rules[numRules - 1].dest_port = -1;	
+	rules[numRules - 1].protocol = -1;
+	*/
+	/*
+	// Rule to block all ICMP traffic
+	numRules++;
+	rules[numRules - 1].src_ip = -1;
+	rules[numRules - 1].dest_ip = -1;	
+	rules[numRules - 1].src_port = -1;
+	rules[numRules - 1].dest_port = -1;	
+	rules[numRules - 1].protocol = 1;
+	*/
+
+	// Rule to block all UDP traffic
+	numRules++;
+	rules[numRules - 1].src_ip = -1;
+	rules[numRules - 1].dest_ip = -1;	
+	rules[numRules - 1].src_port = -1;
+	rules[numRules - 1].dest_port = -1;	
+	rules[numRules - 1].protocol = 17;
+
 }
 
 
@@ -132,6 +184,7 @@ int init_module(){
 	loadRules();
 	
 	// Initialize Pre-Routing Filter
+	printk("Starting CWall");
 	input_filter.hook	= (nf_hookfn *)&hookfn;		// Hook Function
 	input_filter.pf		= PF_INET;			// Protocol Family
 	input_filter.hooknum	= NF_INET_PRE_ROUTING;		// Hook to be used
@@ -155,4 +208,6 @@ void cleanup_module(){
 	// Unregister our hooks
 	nf_unregister_hook(&input_filter);
 	nf_unregister_hook(&output_filter);
+	
+	printk("Stopping CWall");
 }
